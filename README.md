@@ -74,15 +74,61 @@ readJson(parsed, parser)
 Custom read/write for your own types:
 
 ```nim
-# This data structure is like a Table[int, T],
-# we resort to using arrays for the (key, value) pairs.
+import jsonx
+import jsonx/[parsejson, streams]
 
+type
+  ChatCompletionInputContentKind = enum
+    text, parts
+
+  ChatCompletionContentPart = object
+    text: string
+
+  ChatCompletionMessageContent = object
+    case kind: ChatCompletionInputContentKind
+    of text:
+      text: string
+    of parts:
+      parts: seq[ChatCompletionContentPart]
+
+  ChatMessage = object
+    role: string
+    content: ChatCompletionMessageContent
+
+# Accept either:
+# - "content": "plain text"
+# - "content": [{ "text": "part 1" }, ...]
+proc readJson*(dst: var ChatCompletionMessageContent; p: var JsonParser) =
+  if p.tok == tkString:
+    dst = ChatCompletionMessageContent(kind: text)
+    readJson(dst.text, p)
+  elif p.tok == tkBracketLe:
+    dst = ChatCompletionMessageContent(kind: parts)
+    readJson(dst.parts, p)
+  else:
+    raiseParseErr(p, "string or array")
+
+# Write back with the same shape.
+proc writeJson*(s: Stream; x: ChatCompletionMessageContent) =
+  case x.kind
+  of text:
+    writeJson(s, x.text)
+  of parts:
+    writeJson(s, x.parts)
+```
+
+```nim
+# This data structure is like a Table[int, T],
+# so we encode it as an array of [key, value] pairs.
 proc writeJson*[T](s: Stream; a: SparseSet[T]) =
   s.write "["
   var comma = false
   for e, val in a.pairs:
+    # Emit commas between pairs.
     if comma: s.write ","
     else: comma = true
+
+    # Each entry is a 2-element JSON array: [entity, value].
     s.write "["
     writeJson(s, e)
     s.write ","
@@ -92,6 +138,7 @@ proc writeJson*[T](s: Stream; a: SparseSet[T]) =
 
 proc readJson*[T](dst: var SparseSet[T]; p: var JsonParser) =
   eat(p, tkBracketLe)
+  # Start from a clean container before filling parsed entries.
   dst = initSparseSet[T]()
   while p.tok != tkBracketRi:
     eat(p, tkBracketLe)
@@ -102,6 +149,7 @@ proc readJson*[T](dst: var SparseSet[T]; p: var JsonParser) =
     readJson(val, p)
     dst[e] = val
     eat(p, tkBracketRi)
+    # Accept either ',' + next item or closing ']'.
     expectArraySeparator(p)
   eat(p, tkBracketRi)
 ```
