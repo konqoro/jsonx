@@ -189,13 +189,13 @@ nim c -r tests/test_compliance.nim
 
 Build flag: `-d:danger`
 
-| Benchmark | Command | Time | Memory |
-| --- | --- | --- | --- |
-| `std/json` | `nim c -d:danger -r bench/benchmark.nim` | `1.512484859s` | `20KiB` |
-| `jsonx` | `nim c -d:danger -r bench/benchmark_jsonx.nim` | `0.5514422219999999s` | `0B` |
-| `jsony` | `nim c -d:danger -r bench/benchmark_jsony.nim` | `0.640786663s` | `0B` |
-| `eminim` | `nim c -d:danger -r bench/benchmark_eminim.nim` | `0.711290562s` | `20KiB` |
-| `jsonx (ints)` | `nim c -d:danger -r bench/benchmark_jsonx_ints.nim` | `0.087715133s` | `30.25MiB` |
+| Benchmark | Command | Time |
+| --- | --- | --- |
+| `std/json` | `nim c -d:danger -r bench/benchmark.nim` | `1.512484859s` |
+| `jsonx` | `nim c -d:danger -r bench/benchmark_jsonx.nim` | `0.5514422219999999s` |
+| `jsony` | `nim c -d:danger -r bench/benchmark_jsony.nim` | `0.640786663s` |
+| `eminim` | `nim c -d:danger -r bench/benchmark_eminim.nim` | `0.711290562s` |
+| `jsonx (ints)` | `nim c -d:danger -r bench/benchmark_jsonx_ints.nim` | `0.087715133s` |
 
 In this run, `jsonx` is about `2.74x` faster than `std/json`, `jsony` is about `2.36x` faster than `std/json`, and `eminim` is about `2.13x` faster than `std/json`. `jsonx` is about `1.16x` faster than `jsony`.
 
@@ -203,9 +203,9 @@ In this run, `jsonx` is about `2.74x` faster than `std/json`, `jsony` is about `
 
 This benchmark parses a generated chat-completions style payload (`bench/openai/openai_chat_payload.json`, ~75MiB, 60,000 sessions with message/tool-call/usage data) to better represent OpenAI API usage.
 
-| Benchmark | Command | Time | Memory |
-| --- | --- | --- | --- |
-| `jsonx (openai)` | `nim c -d:danger -r bench/openai/benchmark_jsonx.nim` | `0.155633581s` (median of 3) | `0B` |
-| `jsony (openai)` | `nim c -d:danger -r bench/openai/benchmark_jsony.nim` | `0.153236498s` (median of 3) | `0B` |
+| Benchmark | Command | Time |
+| --- | --- | --- |
+| `jsonx (openai)` | `nim c -d:danger -r bench/openai/benchmark_jsonx.nim` | `0.155633581s` (median of 3) |
+| `jsony (openai)` | `nim c -d:danger -r bench/openai/benchmark_jsony.nim` | `0.153236498s` (median of 3) |
 
 In this run, `jsony` is about `1.02x` faster than `jsonx` on the OpenAI API-like workload.
