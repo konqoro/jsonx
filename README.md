@@ -117,6 +117,58 @@ proc writeJson*(s: Stream; x: ChatCompletionMessageContent) =
     writeJson(s, x.parts)
 ```
 
+State-aware output (emit only fields relevant to the current status):
+
+```nim
+import jsonx
+import jsonx/streams
+
+type
+  PageErrorKind = enum
+    NoError, NetworkError, HttpError, ParseError
+
+  PageResultStatus = enum
+    PagePending = "pending"
+    PageOk = "ok"
+    PageError = "error"
+
+  PageResult = object
+    page: int
+    status: PageResultStatus
+    text: string
+    errorKind: PageErrorKind
+    errorMessage: string
+    httpStatus: int
+
+template writeJsonField(s: Stream; name: string; value: untyped) =
+  # Shared "key:value" writer with comma handling.
+  if comma: s.write ","
+  else: comma = true
+  escapeJson(s, name)
+  s.write ":"
+  writeJson(s, value)
+
+proc writeJson*(s: Stream; x: PageResult) =
+  var comma = false
+  s.write "{"
+  writeJsonField(s, "page", x.page)
+  writeJsonField(s, "status", x.status)
+  case x.status
+  of PageOk:
+    writeJsonField(s, "text", x.text) # Success payload.
+  of PageError:
+    writeJsonField(s, "error_kind", x.errorKind)
+    writeJsonField(s, "error_message", x.errorMessage)
+    if x.httpStatus != 0:
+      writeJsonField(s, "http_status", x.httpStatus) # Optional HTTP context.
+  of PagePending:
+    discard # Nothing extra to emit yet.
+  s.write "}"
+
+let ok = PageResult(page: 7, status: PageOk, text: "hello")
+echo toJson(ok) # {"page":7,"status":"ok","text":"hello"}
+```
+
 ```nim
 # This data structure is like a Table[int, T],
 # so we encode it as an array of [key, value] pairs.

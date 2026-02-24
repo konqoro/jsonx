@@ -477,7 +477,7 @@ proc toJson*[T](x: T): string =
   ## Serializes the specified value to a JSON string.
   let s = streams.open("")
   s.writeJson(x)
-  result = s.s
+  result = move(s.s)
 
 template whileJsonItems(s, x, xType, body: untyped) =
   var p: JsonParser
