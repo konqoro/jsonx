@@ -85,7 +85,7 @@ type
   LenientKnown = object
     known: int
 
-proc readJson(dst: var Baz; p: var JsonParser) =
+proc readJson(dst: out Baz; p: var JsonParser) =
   var tmp: string
   readJson(tmp, p)
   dst = Baz(tmp)

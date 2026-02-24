@@ -145,7 +145,7 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
-proc readJson*(dst: var string; p: var JsonParser) =
+proc readJson*(dst: out string; p: var JsonParser) =
   if p.tok == tkNull:
     dst = ""
     discard getTok(p)
@@ -155,7 +155,7 @@ proc readJson*(dst: var string; p: var JsonParser) =
   else:
     raiseParseErr(p, "string or null")
 
-proc readJson*(dst: var char; p: var JsonParser) =
+proc readJson*(dst: out char; p: var JsonParser) =
   if p.tok == tkString and len(p.a) == 1:
     dst = p.a[0]
     discard getTok(p)
@@ -165,7 +165,7 @@ proc readJson*(dst: var char; p: var JsonParser) =
   else:
     raiseParseErr(p, "string of length 1 or int for a char")
 
-proc readJson*(dst: var bool; p: var JsonParser) =
+proc readJson*(dst: out bool; p: var JsonParser) =
   case p.tok
   of tkTrue:
     dst = true
@@ -176,14 +176,14 @@ proc readJson*(dst: var bool; p: var JsonParser) =
   else:
     raiseParseErr(p, "'true' or 'false' for a bool")
 
-proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
+proc readJson*[T: SomeInteger](dst: out T; p: var JsonParser) =
   if p.tok == tkInt:
     dst = T(getInt(p))
     discard getTok(p)
   else:
     raiseParseErr(p, "int")
 
-proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser) =
+proc readJson*[T: SomeFloat](dst: out T; p: var JsonParser) =
   if p.tok == tkFloat:
     dst = T(getFloat(p))
     discard getTok(p)
@@ -193,7 +193,7 @@ proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser) =
   else:
     raiseParseErr(p, "float or int")
 
-proc readJson*[T: enum](dst: var T; p: var JsonParser) =
+proc readJson*[T: enum](dst: out T; p: var JsonParser) =
   if p.tok == tkString:
     dst = parseEnum[T](p.a)
     discard getTok(p)
@@ -203,7 +203,7 @@ proc readJson*[T: enum](dst: var T; p: var JsonParser) =
   else:
     raiseParseErr(p, "string or int for a enum")
 
-proc readJson*[T](dst: var seq[T]; p: var JsonParser) =
+proc readJson*[T](dst: out seq[T]; p: var JsonParser) =
   eat(p, tkBracketLe)
   dst.setLen(0)
   while p.tok != tkBracketRi:
@@ -213,7 +213,7 @@ proc readJson*[T](dst: var seq[T]; p: var JsonParser) =
     expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[S, T](dst: var array[S, T]; p: var JsonParser) =
+proc readJson*[S, T](dst: out array[S, T]; p: var JsonParser) =
   eat(p, tkBracketLe)
   var i = int(low(dst))
   let hi = int(high(dst))
@@ -226,7 +226,7 @@ proc readJson*[S, T](dst: var array[S, T]; p: var JsonParser) =
       expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[T](dst: var (SomeSet[T]|set[T]); p: var JsonParser) =
+proc readJson*[T](dst: out (SomeSet[T]|set[T]); p: var JsonParser) =
   eat(p, tkBracketLe)
   while p.tok != tkBracketRi:
     var tmp: T
@@ -235,7 +235,7 @@ proc readJson*[T](dst: var (SomeSet[T]|set[T]); p: var JsonParser) =
     expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[T](dst: var (Table[string, T]|OrderedTable[string, T]); p: var JsonParser) =
+proc readJson*[T](dst: out (Table[string, T]|OrderedTable[string, T]); p: var JsonParser) =
   eat(p, tkCurlyLe)
   while p.tok != tkCurlyRi:
     if p.tok != tkString:
@@ -247,7 +247,7 @@ proc readJson*[T](dst: var (Table[string, T]|OrderedTable[string, T]); p: var Js
     expectObjectSeparator(p)
   eat(p, tkCurlyRi)
 
-proc readJson*[T](dst: var ref T; p: var JsonParser) =
+proc readJson*[T](dst: out ref T; p: var JsonParser) =
   if p.tok == tkNull:
     dst = nil
     discard getTok(p)
@@ -257,7 +257,7 @@ proc readJson*[T](dst: var ref T; p: var JsonParser) =
   else:
     raiseParseErr(p, "object or null")
 
-proc readJson*[T](dst: var Option[T]; p: var JsonParser) =
+proc readJson*[T](dst: out Option[T]; p: var JsonParser) =
   if p.tok != tkNull:
     var tmp: T
     readJson(tmp, p)
@@ -398,7 +398,7 @@ macro assignObjectImpl(dst: typed; parser: JsonParser): untyped =
     foldObjectBody(typeSym.getTypeImpl, dst, parser)
   if x.kind != nnkNone: result.add x
 
-proc readJson*[T: object](dst: var T; p: var JsonParser) =
+proc readJson*[T: object](dst: out T; p: var JsonParser) =
   eat(p, tkCurlyLe)
   while p.tok != tkCurlyRi:
     if p.tok != tkString:
@@ -407,7 +407,7 @@ proc readJson*[T: object](dst: var T; p: var JsonParser) =
     expectObjectSeparator(p)
   eat(p, tkCurlyRi)
 
-proc readJson*[T: tuple](dst: var T; p: var JsonParser) =
+proc readJson*[T: tuple](dst: out T; p: var JsonParser) =
   when isNamedTuple(T):
     eat(p, tkCurlyLe)
     while p.tok != tkCurlyRi:
@@ -443,7 +443,7 @@ proc fromJson*[T](s: Stream, t: typedesc[T]): T =
   finally:
     close(p)
 
-proc fromJson*[T](s: Stream, dst: var T) =
+proc fromJson*[T](s: Stream, dst: out T) =
   ## Unmarshals the specified stream into the location specified.
   var p: JsonParser
   open(p, s, "unknown file")
@@ -459,12 +459,12 @@ proc fromJson*[T](input: string, t: typedesc[T]): T =
   let s = streams.open(input)
   result = fromJson(s, t)
 
-proc fromJson*[T](input: string, dst: var T) =
+proc fromJson*[T](input: string, dst: out T) =
   ## Unmarshals the specified string into the location specified.
   let s = streams.open(input)
   fromJson(s, dst)
 
-proc fromFile*[T](path: Path, dst: var T) =
+proc fromFile*[T](path: Path, dst: out T) =
   ## Unmarshals the specified JSON file into the location specified.
   let s = streams.open(path, fmRead)
   fromJson(s, dst)

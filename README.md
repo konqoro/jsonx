@@ -98,7 +98,7 @@ type
 # Accept either:
 # - "content": "plain text"
 # - "content": [{ "text": "part 1" }, ...]
-proc readJson*(dst: var ChatCompletionMessageContent; p: var JsonParser) =
+proc readJson*(dst: out ChatCompletionMessageContent; p: var JsonParser) =
   if p.tok == tkString:
     dst = ChatCompletionMessageContent(kind: text)
     readJson(dst.text, p)
@@ -188,7 +188,7 @@ proc writeJson*[T](s: Stream; a: SparseSet[T]) =
     s.write "]"
   s.write "]"
 
-proc readJson*[T](dst: var SparseSet[T]; p: var JsonParser) =
+proc readJson*[T](dst: out SparseSet[T]; p: var JsonParser) =
   eat(p, tkBracketLe)
   # Start from a clean container before filling parsed entries.
   dst = initSparseSet[T]()
