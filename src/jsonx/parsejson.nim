@@ -111,7 +111,7 @@ proc parseEscapedUTF16*(buf: cstring, pos: var int): int =
     else:
       return -1
 
-proc addSpan(dst: out string; src: string; startPos, endPos: int) {.inline.} =
+proc addSpan(dst: var string; src: string; startPos, endPos: int) {.inline.} =
   let n = endPos - startPos
   if n <= 0:
     return
