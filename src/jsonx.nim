@@ -2,6 +2,9 @@ import std/[macros, strutils, options, tables, sets, paths]
 import jsonx/[parsejson, streams]
 from std/typetraits import isNamedTuple, distinctBase
 
+type
+  RawJson* = distinct string
+
 # serialization
 proc escapeJsonUnquoted*(x: string; s: Stream) =
   ## Converts a string `s` to its JSON representation without quotes.
@@ -34,6 +37,9 @@ proc writeJsonNull*(s: Stream) =
 proc writeJson*(s: Stream; x: string) =
   ## Creates a new JString.
   escapeJson(s, x)
+
+proc writeJson*(s: Stream; x: RawJson) =
+  streams.write(s, distinctBase(x))
 
 proc writeJson*(s: Stream; b: bool) =
   ## Creates a new JBool.
@@ -145,6 +151,57 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
+proc writeParsedJson(dst: Stream; p: var JsonParser) =
+  case p.tok
+  of tkString:
+    writeJson(dst, p.a)
+    discard getTok(p)
+  of tkInt:
+    writeJson(dst, p.getInt())
+    discard getTok(p)
+  of tkFloat:
+    writeJson(dst, p.getFloat())
+    discard getTok(p)
+  of tkTrue:
+    writeJson(dst, true)
+    discard getTok(p)
+  of tkFalse:
+    writeJson(dst, false)
+    discard getTok(p)
+  of tkNull:
+    writeJsonNull(dst)
+    discard getTok(p)
+  of tkCurlyLe:
+    var comma = false
+    streams.write(dst, "{")
+    discard getTok(p)
+    while p.tok != tkCurlyRi:
+      if p.tok != tkString:
+        raiseParseErr(p, "string literal as key")
+      if comma: streams.write(dst, ",")
+      else: comma = true
+      escapeJson(dst, p.a)
+      discard getTok(p)
+      eat(p, tkColon)
+      streams.write(dst, ":")
+      writeParsedJson(dst, p)
+      expectObjectSeparator(p)
+    eat(p, tkCurlyRi)
+    streams.write(dst, "}")
+  of tkBracketLe:
+    var comma = false
+    streams.write(dst, "[")
+    discard getTok(p)
+    while p.tok != tkBracketRi:
+      if comma: streams.write(dst, ",")
+      else: comma = true
+      writeParsedJson(dst, p)
+      expectArraySeparator(p)
+    eat(p, tkBracketRi)
+    streams.write(dst, "]")
+  of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
+    raiseParseErr(p, "{")
+
 proc readJson*(dst: var string; p: var JsonParser) =
   if p.tok == tkNull:
     dst = ""
@@ -154,6 +211,11 @@ proc readJson*(dst: var string; p: var JsonParser) =
     discard getTok(p)
   else:
     raiseParseErr(p, "string or null")
+
+proc readJson*(dst: var RawJson; p: var JsonParser) =
+  let s = streams.open("")
+  writeParsedJson(s, p)
+  dst = RawJson(move(s.s))
 
 proc readJson*(dst: var char; p: var JsonParser) =
   if p.tok == tkString and len(p.a) == 1:

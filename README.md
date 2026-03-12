@@ -117,6 +117,33 @@ proc writeJson*(s: Stream; x: ChatCompletionMessageContent) =
     writeJson(s, x.parts)
 ```
 
+Keep arbitrary JSON payloads without locking in a schema:
+
+Use `RawJson` when a field can hold any JSON payload. It lets you keep that
+payload intact so you can parse it later, pass it through as an opaque JSON
+value, or attach any schema or dynamic structure without defining a fixed Nim
+type up front. This is especially useful for schemas, forward-compatible APIs,
+and unknown or partial structures.
+
+```nim
+import jsonx
+
+type
+  ResponseFormat = object
+    name: string
+    schema: RawJson
+
+let format = ResponseFormat(
+  name: "summary",
+  schema: RawJson(
+    """{"type":"object","properties":{"text":{"type":"string"}}}"""
+  )
+)
+
+echo toJson(format)
+# {"name":"summary","schema":{"type":"object","properties":{"text":{"type":"string"}}}}
+```
+
 State-aware output (emit only fields relevant to the current status):
 
 ```nim
