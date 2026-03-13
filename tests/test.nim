@@ -86,8 +86,13 @@ type
     known: int
   RawJsonHolder = object
     payload: RawJson
+  CanonRawJsonHolder = object
+    payload: CanonRawJson
 
 proc rawText(x: RawJson): string =
+  result = string(x)
+
+proc canonicalText(x: CanonRawJson): string =
   result = string(x)
 
 proc readJson(dst: var Baz; p: var JsonParser) =
@@ -198,10 +203,16 @@ block:
   doAssert toJson(raw) == rawText(raw)
 block:
   let raw = fromJson("""{"z":0,"a":1,"m":2}""", RawJson)
-  doAssert rawText(raw) == """{"a":1,"m":2,"z":0}"""
+  doAssert rawText(raw) == """{"z":0,"a":1,"m":2}"""
 block:
   let raw = fromJson("""{"b":1,"a":2,"b":3,"a":4}""", RawJson)
-  doAssert rawText(raw) == """{"a":4,"b":3}"""
+  doAssert rawText(raw) == """{"b":1,"a":2,"b":3,"a":4}"""
+block:
+  let raw = fromJson("""{"z":0,"a":1,"m":2}""", CanonRawJson)
+  doAssert canonicalText(raw) == """{"a":1,"m":2,"z":0}"""
+block:
+  let raw = fromJson("""{"b":1,"a":2,"b":3,"a":4}""", CanonRawJson)
+  doAssert canonicalText(raw) == """{"a":4,"b":3}"""
 block:
   let raw = fromJson(""" "\u0041\n" """, RawJson)
   doAssert rawText(raw) == "\"A\\n\""
@@ -213,7 +224,16 @@ block:
   let s = toJsonString(data)
   doAssert s == """{"payload":{"x":1,"items":[true,null,"ok"]}}"""
   let parsed = fromJson("""{"payload": { "x" : 1, "items" : [true, null, "ok"] }}""", RawJsonHolder)
-  doAssert rawText(parsed.payload) == """{"items":[true,null,"ok"],"x":1}"""
+  doAssert rawText(parsed.payload) == """{"x":1,"items":[true,null,"ok"]}"""
+block:
+  let data = CanonRawJsonHolder(
+    payload: CanonRawJson("""{"x":1,"items":[true,null,"ok"]}""")
+  )
+  let s = toJsonString(data)
+  doAssert s == """{"payload":{"x":1,"items":[true,null,"ok"]}}"""
+  let parsed = fromJson("""{"payload": { "x" : 1, "items" : [true, null, "ok"] }}""",
+    CanonRawJsonHolder)
+  doAssert canonicalText(parsed.payload) == """{"items":[true,null,"ok"],"x":1}"""
 block:
   let s = streams.open("""{"k": [1, 2, true]}""")
   var p: JsonParser

@@ -120,26 +120,27 @@ proc writeJson*(s: Stream; x: ChatCompletionMessageContent) =
 Work with arbitrary JSON payloads:
 
 Use `RawJson` when a field needs to carry JSON without a dedicated Nim type.
-Parsed values are normalized into a stable form, which makes pass-through data,
-hashing, caching, and snapshot tests more predictable.
+Use `CanonRawJson` only when you need one stable representation for caching, hashing, or comparisons.
 
 ```nim
 import jsonx
 
 type
-  ResponseFormat = object
+  ToolSpec = object
     name: string
     schema: RawJson
 
-let format = ResponseFormat(
-  name: "summary",
-  schema: RawJson(
-    """{"type":"object","properties":{"text":{"type":"string"}}}"""
-  )
+let tool = fromJson(
+  """{"name":"extract_invoice","schema":{"type":"object","properties":{"vendor":{"type":"string"},"total":{"type":"number"}}}}""",
+  ToolSpec
 )
 
-echo toJson(format)
-# {"name":"summary","schema":{"type":"object","properties":{"text":{"type":"string"}}}}
+echo toJson(tool)
+# {"name":"extract_invoice","schema":{"type":"object","properties":{"vendor":{"type":"string"},"total":{"type":"number"}}}}
+
+let cacheKey = fromJson("""{"b":1,"a":2,"b":3}""", CanonRawJson)
+echo toJson(cacheKey)
+# {"a":2,"b":3}
 ```
 
 State-aware output (emit only fields relevant to the current status):

@@ -4,6 +4,7 @@ from std/typetraits import isNamedTuple, distinctBase
 
 type
   RawJson* = distinct string
+  CanonRawJson* = distinct string
   RawJsonField = tuple[key: string, value: string]
 
 # serialization
@@ -45,6 +46,9 @@ proc writeJson*(s: Stream; x: string) =
   escapeJson(s, x)
 
 proc writeJson*(s: Stream; x: RawJson) =
+  streams.write(s, string(x))
+
+proc writeJson*(s: Stream; x: CanonRawJson) =
   streams.write(s, string(x))
 
 proc writeJson*(s: Stream; b: bool) =
@@ -160,7 +164,55 @@ template expectArraySeparator*(p: JsonParser) =
 proc cmpRawJsonField(field: RawJsonField; key: string): int =
   result = cmp(field.key, key)
 
-proc writeParsedJson(dst: var string; p: var JsonParser) =
+proc writeParsedJson(dst: var string; p: var JsonParser; normalized: bool)
+
+proc writeObjectJson(dst: var string; p: var JsonParser) =
+  var comma = false
+  dst.add('{')
+  discard getTok(p)
+  while p.tok != tkCurlyRi:
+    if p.tok != tkString:
+      raiseParseErr(p, "string literal as key")
+    if comma: dst.add(',')
+    else: comma = true
+    escapeJson(p.a, dst)
+    discard getTok(p)
+    eat(p, tkColon)
+    dst.add(':')
+    writeParsedJson(dst, p, normalized = false)
+    expectObjectSeparator(p)
+  eat(p, tkCurlyRi)
+  dst.add('}')
+
+proc writeNormalizedObjectJson(dst: var string; p: var JsonParser) =
+  var fields: seq[RawJsonField]
+  discard getTok(p)
+  while p.tok != tkCurlyRi:
+    if p.tok != tkString:
+      raiseParseErr(p, "string literal as key")
+    let key = p.a
+    discard getTok(p)
+    eat(p, tkColon)
+    var value = ""
+    writeParsedJson(value, p, normalized = true)
+    let idx = lowerBound(fields, key, cmpRawJsonField)
+    if idx < fields.len and fields[idx].key == key:
+      fields[idx].value = ensureMove(value)
+    else:
+      fields.insert((key, ensureMove(value)), idx)
+    expectObjectSeparator(p)
+  eat(p, tkCurlyRi)
+  var comma = false
+  dst.add('{')
+  for field in fields:
+    if comma: dst.add(',')
+    else: comma = true
+    escapeJson(field.key, dst)
+    dst.add(':')
+    dst.add(field.value)
+  dst.add('}')
+
+proc writeParsedJson(dst: var string; p: var JsonParser; normalized: bool) =
   case p.tok
   of tkString:
     escapeJson(p.a, dst)
@@ -181,32 +233,10 @@ proc writeParsedJson(dst: var string; p: var JsonParser) =
     dst.add("null")
     discard getTok(p)
   of tkCurlyLe:
-    var fields: seq[RawJsonField]
-    discard getTok(p)
-    while p.tok != tkCurlyRi:
-      if p.tok != tkString:
-        raiseParseErr(p, "string literal as key")
-      let key = p.a
-      discard getTok(p)
-      eat(p, tkColon)
-      var value = ""
-      writeParsedJson(value, p)
-      let idx = lowerBound(fields, key, cmpRawJsonField)
-      if idx < fields.len and fields[idx].key == key:
-        fields[idx].value = ensureMove(value)
-      else:
-        fields.insert((key, ensureMove(value)), idx)
-      expectObjectSeparator(p)
-    eat(p, tkCurlyRi)
-    var comma = false
-    dst.add('{')
-    for field in fields:
-      if comma: dst.add(',')
-      else: comma = true
-      escapeJson(field.key, dst)
-      dst.add(':')
-      dst.add(field.value)
-    dst.add('}')
+    if normalized:
+      writeNormalizedObjectJson(dst, p)
+    else:
+      writeObjectJson(dst, p)
   of tkBracketLe:
     var comma = false
     dst.add('[')
@@ -214,7 +244,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser) =
     while p.tok != tkBracketRi:
       if comma: dst.add(',')
       else: comma = true
-      writeParsedJson(dst, p)
+      writeParsedJson(dst, p, normalized)
       expectArraySeparator(p)
     eat(p, tkBracketRi)
     dst.add(']')
@@ -233,8 +263,13 @@ proc readJson*(dst: var string; p: var JsonParser) =
 
 proc readJson*(dst: var RawJson; p: var JsonParser) =
   var tmp = ""
-  writeParsedJson(tmp, p)
-  dst = RawJson(move(tmp))
+  writeParsedJson(tmp, p, normalized = false)
+  dst = RawJson(ensureMove(tmp))
+
+proc readJson*(dst: var CanonRawJson; p: var JsonParser) =
+  var tmp = ""
+  writeParsedJson(tmp, p, normalized = true)
+  dst = CanonRawJson(ensureMove(tmp))
 
 proc readJson*(dst: var char; p: var JsonParser) =
   if p.tok == tkString and len(p.a) == 1:
