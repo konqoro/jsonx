@@ -164,7 +164,7 @@ template expectArraySeparator*(p: JsonParser) =
 proc cmpRawJsonField(field: RawJsonField; key: string): int =
   result = cmp(field.key, key)
 
-proc writeParsedJson(dst: var string; p: var JsonParser; normalized: bool)
+proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool])
 
 proc writeObjectJson(dst: var string; p: var JsonParser) =
   var comma = false
@@ -212,7 +212,7 @@ proc writeNormalizedObjectJson(dst: var string; p: var JsonParser) =
     dst.add(field.value)
   dst.add('}')
 
-proc writeParsedJson(dst: var string; p: var JsonParser; normalized: bool) =
+proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool]) =
   case p.tok
   of tkString:
     escapeJson(p.a, dst)
@@ -233,7 +233,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser; normalized: bool) =
     dst.add("null")
     discard getTok(p)
   of tkCurlyLe:
-    if normalized:
+    when normalized:
       writeNormalizedObjectJson(dst, p)
     else:
       writeObjectJson(dst, p)
