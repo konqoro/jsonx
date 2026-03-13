@@ -1,4 +1,4 @@
-import std/[algorithm, macros, strutils, options, tables, sets, paths]
+import std/[algorithm, hashes, macros, strutils, options, tables, sets, paths]
 import jsonx/[parsejson, streams]
 from std/typetraits import isNamedTuple, distinctBase
 
@@ -6,6 +6,11 @@ type
   RawJson* = distinct string
   CanonRawJson* = distinct string
   RawJsonField = tuple[key: string, value: string]
+
+proc `==`*(a, b: CanonRawJson): bool {.borrow.}
+proc hash*(x: CanonRawJson): Hash {.borrow.}
+proc `$`*(x: RawJson): string {.borrow.}
+proc `$`*(x: CanonRawJson): string {.borrow.}
 
 # serialization
 proc escapeJsonUnquoted(x: string; dst: var string) =
