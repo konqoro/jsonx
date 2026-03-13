@@ -23,12 +23,29 @@ proc escapeJsonUnquoted*(x: string; s: Stream) =
     of '\\': streams.write(s, "\\\\")
     else: streams.write(s, c)
 
+proc escapeJsonUnquoted(x: string; dst: var string) =
+  for c in x:
+    case c
+    of '\L': dst.add("\\n")
+    of '\b': dst.add("\\b")
+    of '\f': dst.add("\\f")
+    of '\t': dst.add("\\t")
+    of '\v': dst.add("\\u000b")
+    of '\r': dst.add("\\r")
+    of '"': dst.add("\\\"")
+    of '\0'..'\7': dst.add("\\u000" & $ord(c))
+    of '\14'..'\31': dst.add("\\u00" & toHex(ord(c), 2))
+    of '\\': dst.add("\\\\")
+    else: dst.add(c)
+
 proc escapeJson*(s: Stream; x: string) =
   ## Converts a string `s` to its JSON representation with quotes.
   ## Appends to ``result``.
-  streams.write(s, "\"")
-  escapeJsonUnquoted(x, s)
-  streams.write(s, "\"")
+  var tmp = newStringOfCap(x.len + x.len shr 3)
+  tmp.add('"')
+  escapeJsonUnquoted(x, tmp)
+  tmp.add('"')
+  streams.write(s, tmp)
 
 proc writeJsonNull*(s: Stream) =
   ## Creates a new JNull.
