@@ -168,54 +168,58 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
-proc writeParsedJson(dst: Stream; p: var JsonParser) =
+proc writeParsedJson(dst: var string; p: var JsonParser) =
   case p.tok
   of tkString:
-    writeJson(dst, p.a)
+    dst.add('"')
+    escapeJsonUnquoted(p.a, dst)
+    dst.add('"')
     discard getTok(p)
   of tkInt:
-    writeJson(dst, p.getInt())
+    dst.add($p.getInt())
     discard getTok(p)
   of tkFloat:
-    writeJson(dst, p.getFloat())
+    dst.add($p.getFloat())
     discard getTok(p)
   of tkTrue:
-    writeJson(dst, true)
+    dst.add("true")
     discard getTok(p)
   of tkFalse:
-    writeJson(dst, false)
+    dst.add("false")
     discard getTok(p)
   of tkNull:
-    writeJsonNull(dst)
+    dst.add("null")
     discard getTok(p)
   of tkCurlyLe:
     var comma = false
-    streams.write(dst, "{")
+    dst.add('{')
     discard getTok(p)
     while p.tok != tkCurlyRi:
       if p.tok != tkString:
         raiseParseErr(p, "string literal as key")
-      if comma: streams.write(dst, ",")
+      if comma: dst.add(',')
       else: comma = true
-      escapeJson(dst, p.a)
+      dst.add('"')
+      escapeJsonUnquoted(p.a, dst)
+      dst.add('"')
       discard getTok(p)
       eat(p, tkColon)
-      streams.write(dst, ":")
+      dst.add(':')
       writeParsedJson(dst, p)
       expectObjectSeparator(p)
     eat(p, tkCurlyRi)
-    streams.write(dst, "}")
+    dst.add('}')
   of tkBracketLe:
     var comma = false
-    streams.write(dst, "[")
+    dst.add('[')
     discard getTok(p)
     while p.tok != tkBracketRi:
-      if comma: streams.write(dst, ",")
+      if comma: dst.add(',')
       else: comma = true
       writeParsedJson(dst, p)
       expectArraySeparator(p)
     eat(p, tkBracketRi)
-    streams.write(dst, "]")
+    dst.add(']')
   of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
     raiseParseErr(p, "{")
 
@@ -230,9 +234,9 @@ proc readJson*(dst: var string; p: var JsonParser) =
     raiseParseErr(p, "string or null")
 
 proc readJson*(dst: var RawJson; p: var JsonParser) =
-  let s = streams.open("")
-  writeParsedJson(s, p)
-  dst = RawJson(move(s.s))
+  var tmp = ""
+  writeParsedJson(tmp, p)
+  dst = RawJson(move(tmp))
 
 proc readJson*(dst: var char; p: var JsonParser) =
   if p.tok == tkString and len(p.a) == 1:
