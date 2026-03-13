@@ -6,23 +6,6 @@ type
   RawJson* = distinct string
 
 # serialization
-proc escapeJsonUnquoted*(x: string; s: Stream) =
-  ## Converts a string `s` to its JSON representation without quotes.
-  ## Appends to ``result``.
-  for c in x:
-    case c
-    of '\L': streams.write(s, "\\n")
-    of '\b': streams.write(s, "\\b")
-    of '\f': streams.write(s, "\\f")
-    of '\t': streams.write(s, "\\t")
-    of '\v': streams.write(s, "\\u000b")
-    of '\r': streams.write(s, "\\r")
-    of '"': streams.write(s, "\\\"")
-    of '\0'..'\7': streams.write(s, "\\u000" & $ord(c))
-    of '\14'..'\31': streams.write(s, "\\u00" & toHex(ord(c), 2))
-    of '\\': streams.write(s, "\\\\")
-    else: streams.write(s, c)
-
 proc escapeJsonUnquoted(x: string; dst: var string) =
   for c in x:
     case c
@@ -56,7 +39,7 @@ proc writeJson*(s: Stream; x: string) =
   escapeJson(s, x)
 
 proc writeJson*(s: Stream; x: RawJson) =
-  streams.write(s, distinctBase(x))
+  streams.write(s, string(x))
 
 proc writeJson*(s: Stream; b: bool) =
   ## Creates a new JBool.
