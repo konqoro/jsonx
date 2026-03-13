@@ -168,12 +168,15 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
+template addEscapedJsonString(dst: var string; value: string) =
+  dst.add('"')
+  escapeJsonUnquoted(value, dst)
+  dst.add('"')
+
 proc writeParsedJson(dst: var string; p: var JsonParser) =
   case p.tok
   of tkString:
-    dst.add('"')
-    escapeJsonUnquoted(p.a, dst)
-    dst.add('"')
+    addEscapedJsonString(dst, p.a)
     discard getTok(p)
   of tkInt:
     dst.add($p.getInt())
@@ -199,9 +202,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser) =
         raiseParseErr(p, "string literal as key")
       if comma: dst.add(',')
       else: comma = true
-      dst.add('"')
-      escapeJsonUnquoted(p.a, dst)
-      dst.add('"')
+      addEscapedJsonString(dst, p.a)
       discard getTok(p)
       eat(p, tkColon)
       dst.add(':')
