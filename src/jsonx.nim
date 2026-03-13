@@ -21,13 +21,18 @@ proc escapeJsonUnquoted(x: string; dst: var string) =
     of '\\': dst.add("\\\\")
     else: dst.add(c)
 
+proc escapeJson*(s: string; dst: var string) =
+  ## Converts a string `s` to its JSON representation with quotes.
+  ## Appends to `result`.
+  dst.add("\"")
+  escapeJsonUnquoted(s, dst)
+  dst.add("\"")
+
 proc escapeJson*(s: Stream; x: string) =
   ## Converts a string `s` to its JSON representation with quotes.
   ## Appends to ``result``.
   var tmp = newStringOfCap(x.len + x.len shr 3)
-  tmp.add('"')
-  escapeJsonUnquoted(x, tmp)
-  tmp.add('"')
+  escapeJson(x, tmp)
   streams.write(s, tmp)
 
 proc writeJsonNull*(s: Stream) =
@@ -151,15 +156,10 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
-template addEscapedJsonString(dst: var string; value: string) =
-  dst.add('"')
-  escapeJsonUnquoted(value, dst)
-  dst.add('"')
-
 proc writeParsedJson(dst: var string; p: var JsonParser) =
   case p.tok
   of tkString:
-    addEscapedJsonString(dst, p.a)
+    escapeJson(p.a, dst)
     discard getTok(p)
   of tkInt:
     dst.add($p.getInt())
@@ -185,7 +185,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser) =
         raiseParseErr(p, "string literal as key")
       if comma: dst.add(',')
       else: comma = true
-      addEscapedJsonString(dst, p.a)
+      escapeJson(p.a, dst)
       discard getTok(p)
       eat(p, tkColon)
       dst.add(':')
@@ -333,7 +333,7 @@ proc readJson*[T](dst: var Option[T]; p: var JsonParser) =
     dst = none[T]()
     discard getTok(p)
 
-proc skipJson(p: var JsonParser) =
+proc skipJson*(p: var JsonParser) =
   case p.tok
   of tkString, tkInt, tkFloat, tkTrue, tkFalse, tkNull:
     discard getTok(p)
