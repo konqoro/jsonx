@@ -197,6 +197,12 @@ block:
   doAssert rawText(raw) == """{"answer":[1,{"x":"A"}],"ok":true}"""
   doAssert toJson(raw) == rawText(raw)
 block:
+  let raw = fromJson("""{"z":0,"a":1,"m":2}""", RawJson)
+  doAssert rawText(raw) == """{"a":1,"m":2,"z":0}"""
+block:
+  let raw = fromJson("""{"b":1,"a":2,"b":3,"a":4}""", RawJson)
+  doAssert rawText(raw) == """{"a":4,"b":3}"""
+block:
   let raw = fromJson(""" "\u0041\n" """, RawJson)
   doAssert rawText(raw) == "\"A\\n\""
   doAssert fromJson(toJson(raw), string) == "A\n"
@@ -207,7 +213,7 @@ block:
   let s = toJsonString(data)
   doAssert s == """{"payload":{"x":1,"items":[true,null,"ok"]}}"""
   let parsed = fromJson("""{"payload": { "x" : 1, "items" : [true, null, "ok"] }}""", RawJsonHolder)
-  doAssert rawText(parsed.payload) == """{"x":1,"items":[true,null,"ok"]}"""
+  doAssert rawText(parsed.payload) == """{"items":[true,null,"ok"],"x":1}"""
 block:
   let s = streams.open("""{"k": [1, 2, true]}""")
   var p: JsonParser

@@ -117,13 +117,11 @@ proc writeJson*(s: Stream; x: ChatCompletionMessageContent) =
     writeJson(s, x.parts)
 ```
 
-Keep arbitrary JSON payloads without locking in a schema:
+Work with arbitrary JSON payloads:
 
-Use `RawJson` when a field can hold any JSON payload. It lets you keep that
-payload intact so you can parse it later, pass it through as an opaque JSON
-value, or attach any schema or dynamic structure without defining a fixed Nim
-type up front. This is especially useful for schemas, forward-compatible APIs,
-and unknown or partial structures.
+Use `RawJson` when a field needs to carry JSON without a dedicated Nim type.
+Parsed values are normalized into a stable form, which makes pass-through data,
+hashing, caching, and snapshot tests more predictable.
 
 ```nim
 import jsonx

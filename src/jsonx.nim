@@ -1,9 +1,10 @@
-import std/[macros, strutils, options, tables, sets, paths]
+import std/[algorithm, macros, strutils, options, tables, sets, paths]
 import jsonx/[parsejson, streams]
 from std/typetraits import isNamedTuple, distinctBase
 
 type
   RawJson* = distinct string
+  RawJsonField = tuple[key: string, value: string]
 
 # serialization
 proc escapeJsonUnquoted(x: string; dst: var string) =
@@ -156,6 +157,9 @@ template expectArraySeparator*(p: JsonParser) =
   elif p.tok != tkBracketRi:
     raiseParseErr(p, "']' or ','")
 
+proc cmpRawJsonField(field: RawJsonField; key: string): int =
+  result = cmp(field.key, key)
+
 proc writeParsedJson(dst: var string; p: var JsonParser) =
   case p.tok
   of tkString:
@@ -177,21 +181,31 @@ proc writeParsedJson(dst: var string; p: var JsonParser) =
     dst.add("null")
     discard getTok(p)
   of tkCurlyLe:
-    var comma = false
-    dst.add('{')
+    var fields: seq[RawJsonField]
     discard getTok(p)
     while p.tok != tkCurlyRi:
       if p.tok != tkString:
         raiseParseErr(p, "string literal as key")
-      if comma: dst.add(',')
-      else: comma = true
-      escapeJson(p.a, dst)
+      let key = p.a
       discard getTok(p)
       eat(p, tkColon)
-      dst.add(':')
-      writeParsedJson(dst, p)
+      var value = ""
+      writeParsedJson(value, p)
+      let idx = lowerBound(fields, key, cmpRawJsonField)
+      if idx < fields.len and fields[idx].key == key:
+        fields[idx].value = ensureMove(value)
+      else:
+        fields.insert((key, ensureMove(value)), idx)
       expectObjectSeparator(p)
     eat(p, tkCurlyRi)
+    var comma = false
+    dst.add('{')
+    for field in fields:
+      if comma: dst.add(',')
+      else: comma = true
+      escapeJson(field.key, dst)
+      dst.add(':')
+      dst.add(field.value)
     dst.add('}')
   of tkBracketLe:
     var comma = false
