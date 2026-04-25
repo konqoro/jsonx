@@ -253,7 +253,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool
       expectArraySeparator(p)
     eat(p, tkBracketRi)
     dst.add(']')
-  of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
+  of tkError, tkNumberError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
     raiseParseErr(p, "{")
 
 proc readJson*(dst: var string; p: var JsonParser) =
@@ -386,7 +386,7 @@ proc readJson*[T](dst: var Option[T]; p: var JsonParser) =
 
 proc skipJson*(p: var JsonParser) =
   case p.tok
-  of tkString, tkInt, tkFloat, tkTrue, tkFalse, tkNull:
+  of tkString, tkInt, tkFloat, tkTrue, tkFalse, tkNull, tkNumberError:
     discard getTok(p)
   of tkCurlyLe:
     discard getTok(p)

@@ -21,6 +21,7 @@ when defined(nimPreviewSlimSystem):
 type
   TokKind* = enum
     tkError,
+    tkNumberError,
     tkEof,
     tkString,
     tkInt,
@@ -48,6 +49,7 @@ type
 const
   tokToStr: array[TokKind, string] = [
     "invalid token",
+    "number literal",
     "EOF",
     "string literal",
     "int literal",
@@ -233,7 +235,7 @@ proc parseNumberValue(my: var JsonParser; tokenStart, tokenLen: int;
     try:
       L = parseBiggestInt(my.buf, my.i, tokenStart)
     except ValueError:
-      return tkError
+      return tkNumberError
   if L != tokenLen:
     return tkError
   result = kind
