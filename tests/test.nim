@@ -1,4 +1,4 @@
-import jsonx, std/[enumerate, math, options, sets, tables]
+import jsonx, std/[enumerate, math, options, paths, sets, tables]
 import jsonx/parsejson
 import jsonx/streams
 
@@ -216,6 +216,10 @@ block:
   doAssertRaises(JsonParsingError):
     var a: array[0..1, int]
     fromJson("[1,2,3]", a)
+block:
+  doAssertRaises(IOError):
+    var x: int
+    fromFile(Path"/tmp/jsonx-missing-file-test-should-not-exist", x)
 block:
   let data = "hello world"
   let a = jsonToFromString(data)

@@ -589,6 +589,8 @@ proc fromJson*[T](s: Stream, t: typedesc[T]): T =
   ##   * Sets in object variants are not supported.
   ##   * Not nil annotations are not supported.
   ##
+  if s.isNil:
+    raise newException(IOError, "input stream is nil")
   var p: JsonParser
   open(p, s, "unknown file")
   try:
@@ -600,6 +602,8 @@ proc fromJson*[T](s: Stream, t: typedesc[T]): T =
 
 proc fromJson*[T](s: Stream, dst: var T) =
   ## Unmarshals the specified stream into the location specified.
+  if s.isNil:
+    raise newException(IOError, "input stream is nil")
   var p: JsonParser
   open(p, s, "unknown file")
   try:
@@ -622,6 +626,8 @@ proc fromJson*[T](input: string, dst: var T) =
 proc fromFile*[T](path: Path, dst: var T) =
   ## Unmarshals the specified JSON file into the location specified.
   let s = streams.open(path, fmRead)
+  if s.isNil:
+    raise newException(IOError, "cannot open file: " & path.string)
   fromJson(s, dst)
 
 proc fromFile*[T](path: Path, t: typedesc[T]): T =
