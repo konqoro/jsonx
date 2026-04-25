@@ -450,10 +450,15 @@ block:
     a[0].siblings[0].birthYear = 1997
     a[0].siblings.add Sibling()
     s.fromJson(a)
-    assert a[0].name == "John Smith"
-    assert a[0].gender == male
-    assert a[0].siblings.len == 2
-    assert a[0].siblings[0].birthYear == 1991
+    assert a.len == 2
+    assert a[0].name == "Janne Smith"
+    assert a[0].gender == female
+    assert a[0].siblings.len == 3
+    assert a[0].siblings[0].birthYear == 1997
+    assert a[1].name == "John Smith"
+    assert a[1].gender == male
+    assert a[1].siblings.len == 2
+    assert a[1].siblings[0].birthYear == 1991
 
 when defined(jsonxLenient):
   block:
