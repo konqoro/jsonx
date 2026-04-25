@@ -279,7 +279,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool
     eat(p, tkBracketRi)
     dst.add(']')
   of tkError, tkNumberError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
-    raiseParseErr(p, "{")
+    raiseParseErr(p, "JSON value")
 
 proc readJson*(dst: var string; p: var JsonParser) =
   if p.tok == tkNull:
@@ -311,7 +311,7 @@ proc readJson*(dst: var char; p: var JsonParser) =
       dst = char(n)
       discard getTok(p)
     else:
-      raiseParseErr(p, "string of length 1 or int for a char")
+      raiseParseErr(p, "valid char code")
   else:
     raiseParseErr(p, "string of length 1 or int for a char")
 
@@ -324,7 +324,7 @@ proc readJson*(dst: var bool; p: var JsonParser) =
     dst = false
     discard getTok(p)
   else:
-    raiseParseErr(p, "'true' or 'false' for a bool")
+    raiseParseErr(p, "true or false")
 
 proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
   if p.tok == tkInt:
@@ -333,7 +333,7 @@ proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
       dst = T(n)
       discard getTok(p)
     else:
-      raiseParseErr(p, "int")
+      raiseParseErr(p, "int in range for target type")
   else:
     raiseParseErr(p, "int")
 
@@ -353,12 +353,12 @@ proc readJson*[T: enum](dst: var T; p: var JsonParser) =
       dst = parseEnum[T](p.a)
       discard getTok(p)
     except ValueError:
-      raiseParseErr(p, "string or int for a enum")
+      raiseParseErr(p, "valid enum name")
   elif p.tok == tkInt:
     if parseEnumValue(getInt(p), dst):
       discard getTok(p)
     else:
-      raiseParseErr(p, "string or int for a enum")
+      raiseParseErr(p, "valid enum value")
   else:
     raiseParseErr(p, "string or int for a enum")
 
@@ -443,7 +443,7 @@ proc skipJson*(p: var JsonParser) =
       expectArraySeparator(p)
     eat(p, tkBracketRi)
   of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
-    raiseParseErr(p, "{")
+    raiseParseErr(p, "JSON value")
 
 template readFieldsInner(parser, body) =
   expectObjectSeparator(parser)
