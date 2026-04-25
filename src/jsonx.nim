@@ -326,7 +326,6 @@ proc readJson*[T: enum](dst: var T; p: var JsonParser) =
 
 proc readJson*[T](dst: var seq[T]; p: var JsonParser) =
   eat(p, tkBracketLe)
-  dst.setLen(0)
   while p.tok != tkBracketRi:
     var tmp: T
     readJson(tmp, p)
@@ -372,11 +371,9 @@ proc readJson*[T](dst: var ref T; p: var JsonParser) =
   if p.tok == tkNull:
     dst = nil
     discard getTok(p)
-  elif p.tok == tkCurlyLe:
+  else:
     new(dst)
     readJson(dst[], p)
-  else:
-    raiseParseErr(p, "object or null")
 
 proc readJson*[T](dst: var Option[T]; p: var JsonParser) =
   if p.tok != tkNull:

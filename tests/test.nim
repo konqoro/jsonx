@@ -135,6 +135,29 @@ block:
   fromJson(s, dst)
   assert dst[] == data[]
 block:
+  var dst: ref seq[int]
+  fromJson("[1,2,3]", dst)
+  doAssert not dst.isNil
+  doAssert dst[] == @[1, 2, 3]
+block:
+  var dst: ref string
+  fromJson(""""hello"""", dst)
+  doAssert not dst.isNil
+  doAssert dst[] == "hello"
+block:
+  var dst: ref int
+  fromJson("42", dst)
+  doAssert not dst.isNil
+  doAssert dst[] == 42
+block:
+  var dst: ref seq[int]
+  fromJson("null", dst)
+  doAssert dst.isNil
+block:
+  var dst: ref string
+  fromJson("null", dst)
+  doAssert dst.isNil
+block:
   let s = """{"value": 7, "next": null}"""
   var dst: Option[Foo]
   fromJson(s, dst)
