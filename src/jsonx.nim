@@ -1,4 +1,4 @@
-import std/[algorithm, enumutils, hashes, macros, strutils, options, tables, sets, paths]
+import std/[algorithm, enumutils, hashes, macros, math, strutils, options, tables, sets, paths]
 import jsonx/[parsejson, streams]
 from std/typetraits import isNamedTuple, distinctBase, HoleyEnum
 
@@ -66,6 +66,8 @@ proc writeJson*(s: Stream; n: BiggestInt) =
 
 proc writeJson*(s: Stream; n: float) =
   ## Creates a new JFloat.
+  if n != n or n == Inf or n == NegInf:
+    raise newException(ValueError, "cannot serialize non-finite float as JSON")
   streams.write(s, $n)
 
 proc writeJson*(s: Stream; o: enum) =
@@ -103,8 +105,7 @@ proc writeJson*[T](s: Stream; o: (Table[string, T]|OrderedTable[string, T])) =
     writeJson(s, v)
   streams.write(s, "}")
 
-proc writeJson*(s: Stream; o: ref object) =
-  ## Generic constructor for JSON data. Creates a new JObject
+proc writeJson*[T](s: Stream; o: ref T) =
   if o.isNil:
     s.writeJsonNull()
   else:

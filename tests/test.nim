@@ -135,6 +135,21 @@ block:
   fromJson(s, dst)
   assert dst[] == data[]
 block:
+  let data: ref seq[int] = new seq[int]
+  data[] = @[1, 2, 3]
+  doAssert toJson(data) == "[1,2,3]"
+block:
+  let data: ref string = new string
+  data[] = "hello"
+  doAssert toJson(data) == "\"hello\""
+block:
+  let data: ref int = new int
+  data[] = 42
+  doAssert toJson(data) == "42"
+block:
+  var data: ref seq[int]
+  doAssert toJson(data) == "null"
+block:
   var dst: ref seq[int]
   fromJson("[1,2,3]", dst)
   doAssert not dst.isNil
@@ -224,6 +239,15 @@ block:
   let data = "hello world"
   let a = jsonToFromString(data)
   assert a == data
+block:
+  doAssertRaises(ValueError):
+    discard toJson(NaN)
+block:
+  doAssertRaises(ValueError):
+    discard toJson(Inf)
+block:
+  doAssertRaises(ValueError):
+    discard toJson(NegInf)
 block:
   doAssertRaises(JsonParsingError):
     discard fromJson("256", uint8)
