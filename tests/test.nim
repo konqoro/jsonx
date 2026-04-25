@@ -221,6 +221,21 @@ block:
   let a = jsonToFromString(data)
   assert a == data
 block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("256", uint8)
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("-1", uint8)
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("256", char)
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("3", Fruit)
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson(""""C"""", Fruit)
+block:
   let raw = fromJson(""" { "answer" : [1, {"x" : "\u0041"}], "ok" : true } """, RawJson)
   doAssert rawText(raw) == """{"answer":[1,{"x":"A"}],"ok":true}"""
   doAssert toJson(raw) == rawText(raw)

@@ -1,6 +1,6 @@
-import std/[algorithm, hashes, macros, strutils, options, tables, sets, paths]
+import std/[algorithm, enumutils, hashes, macros, strutils, options, tables, sets, paths]
 import jsonx/[parsejson, streams]
-from std/typetraits import isNamedTuple, distinctBase
+from std/typetraits import isNamedTuple, distinctBase, HoleyEnum
 
 type
   RawJson* = distinct string
@@ -169,6 +169,30 @@ template expectArraySeparator*(p: JsonParser) =
 proc cmpRawJsonField(field: RawJsonField; key: string): int =
   result = cmp(field.key, key)
 
+proc fitsIntType[T: SomeInteger](n: BiggestInt): bool =
+  when T is SomeUnsignedInt:
+    when sizeof(T) < sizeof(BiggestInt):
+      result = n >= 0 and n <= BiggestInt(high(T))
+    else:
+      result = n >= 0
+  else:
+    when sizeof(T) < sizeof(BiggestInt):
+      result = n >= BiggestInt(low(T)) and n <= BiggestInt(high(T))
+    else:
+      result = true
+
+proc parseEnumValue[T: enum](n: BiggestInt; dst: var T): bool =
+  result = false
+  when T is HoleyEnum:
+    for value in enumutils.items(T):
+      if ord(value) == n:
+        dst = value
+        return true
+  else:
+    if n >= BiggestInt(ord(low(T))) and n <= BiggestInt(ord(high(T))):
+      dst = T(n)
+      result = true
+
 proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool])
 
 proc writeObjectJson(dst: var string; p: var JsonParser) =
@@ -281,8 +305,12 @@ proc readJson*(dst: var char; p: var JsonParser) =
     dst = p.a[0]
     discard getTok(p)
   elif p.tok == tkInt:
-    dst = char(p.getInt())
-    discard getTok(p)
+    let n = p.getInt()
+    if n >= ord(low(char)) and n <= ord(high(char)):
+      dst = char(n)
+      discard getTok(p)
+    else:
+      raiseParseErr(p, "string of length 1 or int for a char")
   else:
     raiseParseErr(p, "string of length 1 or int for a char")
 
@@ -299,8 +327,12 @@ proc readJson*(dst: var bool; p: var JsonParser) =
 
 proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
   if p.tok == tkInt:
-    dst = T(getInt(p))
-    discard getTok(p)
+    let n = getInt(p)
+    if fitsIntType[T](n):
+      dst = T(n)
+      discard getTok(p)
+    else:
+      raiseParseErr(p, "int")
   else:
     raiseParseErr(p, "int")
 
@@ -316,11 +348,16 @@ proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser) =
 
 proc readJson*[T: enum](dst: var T; p: var JsonParser) =
   if p.tok == tkString:
-    dst = parseEnum[T](p.a)
-    discard getTok(p)
+    try:
+      dst = parseEnum[T](p.a)
+      discard getTok(p)
+    except ValueError:
+      raiseParseErr(p, "string or int for a enum")
   elif p.tok == tkInt:
-    dst = T(getInt(p))
-    discard getTok(p)
+    if parseEnumValue(getInt(p), dst):
+      discard getTok(p)
+    else:
+      raiseParseErr(p, "string or int for a enum")
   else:
     raiseParseErr(p, "string or int for a enum")
 
