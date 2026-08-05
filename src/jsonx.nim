@@ -619,10 +619,16 @@ proc fromJson*[T](input: string, t: typedesc[T]): T =
   let s = streams.open(input)
   result = fromJson(s, t)
 
+proc fromJson*[T](input: RawJson, t: typedesc[T]): T {.inline.} =
+  fromJson(string(input), t)
+
 proc fromJson*[T](input: string, dst: var T) =
   ## Unmarshals the specified string into the location specified.
   let s = streams.open(input)
   fromJson(s, dst)
+
+proc fromJson*[T](input: RawJson, dst: var T) {.inline.} =
+  fromJson(string(input), dst)
 
 proc fromFile*[T](path: Path, dst: var T) =
   ## Unmarshals the specified JSON file into the location specified.

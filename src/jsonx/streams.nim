@@ -68,10 +68,6 @@ proc write*(s: Stream, data: string) =
   of skFile:
     write(s.f, data)
 
-proc writeln*(s: Stream, data: string) =
-  write(s, data)
-  write(s, "\n")
-
 proc write*(s: Stream, data: char) =
   var c: char
   case s.kind
@@ -82,6 +78,10 @@ proc write*(s: Stream, data: char) =
   of skFile:
     c = data
     discard writeBuffer(s.f, addr(c), sizeof(c))
+
+proc writeln*(s: Stream, data: string) =
+  write(s, data)
+  write(s, '\n')
 
 proc write*(s: Stream, buf: pointer, buflen: int) =
   case s.kind
