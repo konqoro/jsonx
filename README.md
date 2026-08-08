@@ -68,7 +68,7 @@ var parsed: Person
 var parser: JsonParser
 open(parser, streams.open(s.s), "inline")
 discard getTok(parser)
-readJson(parsed, parser)
+readJson(parsed, parser, ufSkip)
 ```
 
 Custom read/write for your own types:
@@ -98,13 +98,14 @@ type
 # Accept either:
 # - "content": "plain text"
 # - "content": [{ "text": "part 1" }, ...]
-proc readJson*(dst: var ChatCompletionMessageContent; p: var JsonParser) =
+proc readJson*(dst: var ChatCompletionMessageContent; p: var JsonParser;
+               unknownFields: UnknownFieldPolicy) =
   if p.tok == tkString:
     dst = ChatCompletionMessageContent(kind: text)
-    readJson(dst.text, p)
+    readJson(dst.text, p, unknownFields)
   elif p.tok == tkBracketLe:
     dst = ChatCompletionMessageContent(kind: parts)
-    readJson(dst.parts, p)
+    readJson(dst.parts, p, unknownFields)
   else:
     raiseParseErr(p, "string or array")
 
@@ -214,17 +215,18 @@ proc writeJson*[T](s: Stream; a: SparseSet[T]) =
     s.write "]"
   s.write "]"
 
-proc readJson*[T](dst: var SparseSet[T]; p: var JsonParser) =
+proc readJson*[T](dst: var SparseSet[T]; p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   eat(p, tkBracketLe)
   # Start from a clean container before filling parsed entries.
   dst = initSparseSet[T]()
   while p.tok != tkBracketRi:
     eat(p, tkBracketLe)
     var e: Entity
-    readJson(e, p)
+    readJson(e, p, unknownFields)
     eat(p, tkComma)
     var val: T
-    readJson(val, p)
+    readJson(val, p, unknownFields)
     dst[e] = val
     eat(p, tkBracketRi)
     # Accept either ',' + next item or closing ']'.
@@ -243,13 +245,30 @@ for item in jsonItems(s, Person):
   discard
 ```
 
+## Unknown object fields
+
+Unknown object fields are skipped by default. Pass `ufReject` to reject them for one
+decoding operation:
+
+```nim
+let strict = fromJson(payload, Person, ufReject)
+```
+
+The policy propagates through nested objects and custom readers. Recursive `readJson`
+implementations must forward it:
+
+```nim
+proc readJson*(dst: var Wrapper; p: var JsonParser;
+               unknownFields: UnknownFieldPolicy) =
+  readJson(dst.value, p, unknownFields)
+```
+
 ## Compile-Time Defines
 
 Enable with `-d:<define>` or a module pragma like `{.define: <define>.}`.
 
 | Define | Default | Effect |
 | --- | --- | --- |
-| `jsonxLenient` | off | Unknown object fields are skipped during deserialization instead of raising a parse error. |
 | `jsonxNormalized` | off | Object field matching uses `nimIdentNormalize` (case/underscore-insensitive Nim-style matching) instead of exact JSON key matching. |
 
 ## Tests

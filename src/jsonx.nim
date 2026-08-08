@@ -3,6 +3,9 @@ import jsonx/[parsejson, streams]
 from std/typetraits import isNamedTuple, distinctBase, HoleyEnum
 
 type
+  UnknownFieldPolicy* = enum ## Controls unknown object fields during deserialization.
+    ufSkip ## Skip object fields that do not exist in the target type.
+    ufReject ## Reject object fields that do not exist in the target type.
   RawJson* = distinct string
   CanonRawJson* = distinct string
   RawJsonField = tuple[key: string, value: string]
@@ -281,7 +284,7 @@ proc writeParsedJson(dst: var string; p: var JsonParser; normalized: static[bool
   of tkError, tkNumberError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
     raiseParseErr(p, "JSON value")
 
-proc readJson*(dst: var string; p: var JsonParser) =
+proc readJson*(dst: var string; p: var JsonParser; unknownFields: UnknownFieldPolicy) =
   if p.tok == tkNull:
     dst = ""
     discard getTok(p)
@@ -291,17 +294,17 @@ proc readJson*(dst: var string; p: var JsonParser) =
   else:
     raiseParseErr(p, "string or null")
 
-proc readJson*(dst: var RawJson; p: var JsonParser) =
+proc readJson*(dst: var RawJson; p: var JsonParser; unknownFields: UnknownFieldPolicy) =
   var tmp = ""
   writeParsedJson(tmp, p, normalized = false)
   dst = RawJson(ensureMove(tmp))
 
-proc readJson*(dst: var CanonRawJson; p: var JsonParser) =
+proc readJson*(dst: var CanonRawJson; p: var JsonParser; unknownFields: UnknownFieldPolicy) =
   var tmp = ""
   writeParsedJson(tmp, p, normalized = true)
   dst = CanonRawJson(ensureMove(tmp))
 
-proc readJson*(dst: var char; p: var JsonParser) =
+proc readJson*(dst: var char; p: var JsonParser; unknownFields: UnknownFieldPolicy) =
   if p.tok == tkString and len(p.a) == 1:
     dst = p.a[0]
     discard getTok(p)
@@ -315,7 +318,7 @@ proc readJson*(dst: var char; p: var JsonParser) =
   else:
     raiseParseErr(p, "string of length 1 or int for a char")
 
-proc readJson*(dst: var bool; p: var JsonParser) =
+proc readJson*(dst: var bool; p: var JsonParser; unknownFields: UnknownFieldPolicy) =
   case p.tok
   of tkTrue:
     dst = true
@@ -326,7 +329,8 @@ proc readJson*(dst: var bool; p: var JsonParser) =
   else:
     raiseParseErr(p, "true or false")
 
-proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
+proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser;
+                              unknownFields: UnknownFieldPolicy) =
   if p.tok == tkInt:
     let n = getInt(p)
     if fitsIntType[T](n):
@@ -337,7 +341,8 @@ proc readJson*[T: SomeInteger](dst: var T; p: var JsonParser) =
   else:
     raiseParseErr(p, "int")
 
-proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser) =
+proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser;
+                            unknownFields: UnknownFieldPolicy) =
   if p.tok == tkFloat:
     dst = T(getFloat(p))
     discard getTok(p)
@@ -347,7 +352,8 @@ proc readJson*[T: SomeFloat](dst: var T; p: var JsonParser) =
   else:
     raiseParseErr(p, "float or int")
 
-proc readJson*[T: enum](dst: var T; p: var JsonParser) =
+proc readJson*[T: enum](dst: var T; p: var JsonParser;
+                       unknownFields: UnknownFieldPolicy) =
   if p.tok == tkString:
     try:
       dst = parseEnum[T](p.a)
@@ -362,38 +368,42 @@ proc readJson*[T: enum](dst: var T; p: var JsonParser) =
   else:
     raiseParseErr(p, "string or int for a enum")
 
-proc readJson*[T](dst: var seq[T]; p: var JsonParser) =
+proc readJson*[T](dst: var seq[T]; p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   eat(p, tkBracketLe)
   while p.tok != tkBracketRi:
     var tmp: T
-    readJson(tmp, p)
+    readJson(tmp, p, unknownFields)
     dst.add(tmp)
     expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[S, T](dst: var array[S, T]; p: var JsonParser) =
+proc readJson*[S, T](dst: var array[S, T]; p: var JsonParser;
+                     unknownFields: UnknownFieldPolicy) =
   eat(p, tkBracketLe)
   var i = int(low(dst))
   let hi = int(high(dst))
   while i <= hi:
     if p.tok == tkBracketRi:
       raiseParseErr(p, "array element")
-    readJson(dst[S(i)], p)
+    readJson(dst[S(i)], p, unknownFields)
     inc(i)
     if i <= hi:
       expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[T](dst: var (SomeSet[T]|set[T]); p: var JsonParser) =
+proc readJson*[T](dst: var (SomeSet[T]|set[T]); p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   eat(p, tkBracketLe)
   while p.tok != tkBracketRi:
     var tmp: T
-    readJson(tmp, p)
+    readJson(tmp, p, unknownFields)
     dst.incl(tmp)
     expectArraySeparator(p)
   eat(p, tkBracketRi)
 
-proc readJson*[T](dst: var (Table[string, T]|OrderedTable[string, T]); p: var JsonParser) =
+proc readJson*[T](dst: var (Table[string, T]|OrderedTable[string, T]); p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   eat(p, tkCurlyLe)
   while p.tok != tkCurlyRi:
     if p.tok != tkString:
@@ -401,22 +411,24 @@ proc readJson*[T](dst: var (Table[string, T]|OrderedTable[string, T]); p: var Js
     var key = p.a
     discard getTok(p)
     eat(p, tkColon)
-    readJson(mgetOrPut(dst, key, default(T)), p)
+    readJson(mgetOrPut(dst, key, default(T)), p, unknownFields)
     expectObjectSeparator(p)
   eat(p, tkCurlyRi)
 
-proc readJson*[T](dst: var ref T; p: var JsonParser) =
+proc readJson*[T](dst: var ref T; p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   if p.tok == tkNull:
     dst = nil
     discard getTok(p)
   else:
     new(dst)
-    readJson(dst[], p)
+    readJson(dst[], p, unknownFields)
 
-proc readJson*[T](dst: var Option[T]; p: var JsonParser) =
+proc readJson*[T](dst: var Option[T]; p: var JsonParser;
+                  unknownFields: UnknownFieldPolicy) =
   if p.tok != tkNull:
     var tmp: T
-    readJson(tmp, p)
+    readJson(tmp, p, unknownFields)
     dst = some(tmp)
   else:
     dst = none[T]()
@@ -453,23 +465,24 @@ template readFieldsInner(parser, body) =
     body
     expectObjectSeparator(parser)
 
-template raiseWrongKey(parser) =
-  when defined(jsonxLenient):
+template raiseWrongKey(parser, unknownFields) =
+  if unknownFields == ufSkip:
     discard getTok(parser)
     eat(parser, tkColon)
     skipJson(parser)
-  else: raiseParseErr(parser, "valid object field")
+  else:
+    raiseParseErr(parser, "valid object field")
 
-template getFieldValue(parser, tmpSym, fieldSym) =
+template getFieldValue(parser, tmpSym, fieldSym, unknownFields) =
   discard getTok(parser)
   eat(parser, tkColon)
-  readJson(tmpSym.fieldSym, parser)
+  readJson(tmpSym.fieldSym, parser, unknownFields)
 
-template getKindValue(parser, tmpSym, kindSym, kindType) =
+template getKindValue(parser, tmpSym, kindSym, kindType, unknownFields) =
   discard getTok(parser)
   eat(parser, tkColon)
   var kindTmp: kindType
-  readJson(kindTmp, parser)
+  readJson(kindTmp, parser, unknownFields)
   tmpSym = (typeof tmpSym)(kindSym: kindTmp)
 
 template jsonxFieldCaseKey(parser): untyped =
@@ -487,29 +500,29 @@ template jsonxFieldLiteral(name: string): untyped =
 template caseANormalized: untyped =
   nnkCaseStmt.newTree(jsonxFieldCaseKey(parser))
 
-proc foldObjectBody(typeNode, tmpSym, parser: NimNode): NimNode =
+proc foldObjectBody(typeNode, tmpSym, parser, unknownFields: NimNode): NimNode =
   case typeNode.kind
   of nnkEmpty:
     result = newNimNode(nnkNone)
   of nnkRecList, nnkTupleTy:
     result = caseANormalized()
     for it in typeNode:
-      let x = foldObjectBody(it, tmpSym, parser)
+      let x = foldObjectBody(it, tmpSym, parser, unknownFields)
       if x.kind != nnkNone: result.add x
-    result.add nnkElse.newTree(getAst(raiseWrongKey(parser)))
+    result.add nnkElse.newTree(getAst(raiseWrongKey(parser, unknownFields)))
   of nnkIdentDefs:
     expectLen(typeNode, 3)
     let fieldSym = typeNode[0]
     result = nnkOfBranch.newTree(jsonxFieldLiteral(fieldSym.strVal),
-        getAst(getFieldValue(parser, tmpSym, fieldSym)))
+        getAst(getFieldValue(parser, tmpSym, fieldSym, unknownFields)))
   of nnkRecCase:
     let kindSym = typeNode[0][0]
     let kindType = typeNode[0][1]
     result = nnkOfBranch.newTree(jsonxFieldLiteral(kindSym.strVal),
-        getAst(getKindValue(parser, tmpSym, kindSym, kindType)))
+        getAst(getKindValue(parser, tmpSym, kindSym, kindType, unknownFields)))
     let inner = nnkCaseStmt.newTree(nnkDotExpr.newTree(tmpSym, kindSym))
     for i in 1..<typeNode.len:
-      let x = foldObjectBody(typeNode[i], tmpSym, parser)
+      let x = foldObjectBody(typeNode[i], tmpSym, parser, unknownFields)
       if x.kind != nnkNone: inner.add x
     result[^1].add getAst(readFieldsInner(parser, inner))
   of nnkOfBranch, nnkElse:
@@ -519,11 +532,11 @@ proc foldObjectBody(typeNode, tmpSym, parser: NimNode): NimNode =
     let inner = newNimNode(nnkStmtListExpr)
     if typeNode[^1].kind == nnkIdentDefs:
       inner.add caseANormalized()
-    let x = foldObjectBody(typeNode[^1], tmpSym, parser)
+    let x = foldObjectBody(typeNode[^1], tmpSym, parser, unknownFields)
     if x.kind == nnkCaseStmt: inner.add x
     elif x.kind != nnkNone: inner[^1].add x
     if typeNode[^1].kind == nnkIdentDefs:
-      inner[^1].add nnkElse.newTree(getAst(raiseWrongKey(parser)))
+      inner[^1].add nnkElse.newTree(getAst(raiseWrongKey(parser, unknownFields)))
     result.add inner
   of nnkObjectTy:
     expectKind(typeNode[0], nnkEmpty)
@@ -534,9 +547,9 @@ proc foldObjectBody(typeNode, tmpSym, parser: NimNode): NimNode =
       var impl = getTypeImpl(base)
       while impl.kind in {nnkRefTy, nnkPtrTy}:
         impl = getTypeImpl(impl[0])
-      result = foldObjectBody(impl, tmpSym, parser)
+      result = foldObjectBody(impl, tmpSym, parser, unknownFields)
     let body = typeNode[2]
-    let x = foldObjectBody(body, tmpSym, parser)
+    let x = foldObjectBody(body, tmpSym, parser, unknownFields)
     if result.kind != nnkNone:
       if x.kind != nnkNone: # merge case statements
         expectKind(result, nnkCaseStmt)
@@ -545,31 +558,36 @@ proc foldObjectBody(typeNode, tmpSym, parser: NimNode): NimNode =
   else:
     error("unhandled kind: " & $typeNode.kind, typeNode)
 
-macro assignObjectImpl(dst: typed; parser: JsonParser): untyped =
+macro assignObjectImpl(dst: typed; parser: JsonParser;
+                       unknownFields: UnknownFieldPolicy): untyped =
   let typeSym = getTypeInst(dst)
-  result = newStmtList()
-  let x = if typeSym.kind in {nnkTupleTy, nnkTupleConstr}:
-    foldObjectBody(typeSym, dst, parser)
+  let typeNode = if typeSym.kind in {nnkTupleTy, nnkTupleConstr}:
+    typeSym
   else:
-    foldObjectBody(typeSym.getTypeImpl, dst, parser)
-  if x.kind != nnkNone: result.add x
+    typeSym.getTypeImpl
+  result = newStmtList()
+  let body = foldObjectBody(typeNode, dst, parser, unknownFields)
+  if body.kind != nnkNone:
+    result.add body
 
-proc readJson*[T: object](dst: var T; p: var JsonParser) =
+proc readJson*[T: object](dst: var T; p: var JsonParser;
+                          unknownFields: UnknownFieldPolicy) =
   eat(p, tkCurlyLe)
   while p.tok != tkCurlyRi:
     if p.tok != tkString:
       raiseParseErr(p, "string literal as key")
-    assignObjectImpl(dst, p)
+    assignObjectImpl(dst, p, unknownFields)
     expectObjectSeparator(p)
   eat(p, tkCurlyRi)
 
-proc readJson*[T: tuple](dst: var T; p: var JsonParser) =
+proc readJson*[T: tuple](dst: var T; p: var JsonParser;
+                         unknownFields: UnknownFieldPolicy) =
   when isNamedTuple(T):
     eat(p, tkCurlyLe)
     while p.tok != tkCurlyRi:
       if p.tok != tkString:
         raiseParseErr(p, "string literal as key")
-      assignObjectImpl(dst, p)
+      assignObjectImpl(dst, p, unknownFields)
       expectObjectSeparator(p)
     eat(p, tkCurlyRi)
   else:
@@ -577,11 +595,12 @@ proc readJson*[T: tuple](dst: var T; p: var JsonParser) =
     for v in dst.fields:
       if p.tok == tkBracketRi:
         raiseParseErr(p, "tuple element")
-      readJson(v, p)
+      readJson(v, p, unknownFields)
       expectArraySeparator(p)
     eat(p, tkBracketRi)
 
-proc fromJson*[T](s: Stream, t: typedesc[T]): T =
+proc fromJson*[T](s: Stream, t: typedesc[T];
+                  unknownFields = ufSkip): T =
   ## Unmarshals the specified stream into the type specified.
   ##
   ## Known limitations:
@@ -596,12 +615,13 @@ proc fromJson*[T](s: Stream, t: typedesc[T]): T =
   open(p, s, "unknown file")
   try:
     discard getTok(p)
-    readJson(result, p)
+    readJson(result, p, unknownFields)
     eat(p, tkEof)
   finally:
     close(p)
 
-proc fromJson*[T](s: Stream, dst: var T) =
+proc fromJson*[T](s: Stream, dst: var T;
+                  unknownFields = ufSkip) =
   ## Unmarshals the specified stream into the location specified.
   if s.isNil:
     raise newException(IOError, "input stream is nil")
@@ -609,37 +629,43 @@ proc fromJson*[T](s: Stream, dst: var T) =
   open(p, s, "unknown file")
   try:
     discard getTok(p)
-    readJson(dst, p)
+    readJson(dst, p, unknownFields)
     eat(p, tkEof)
   finally:
     close(p)
 
-proc fromJson*[T](input: string, t: typedesc[T]): T =
+proc fromJson*[T](input: string, t: typedesc[T];
+                  unknownFields = ufSkip): T =
   ## Unmarshals the specified string into the type specified.
   let s = streams.open(input)
-  result = fromJson(s, t)
+  result = fromJson(s, t, unknownFields)
 
-proc fromJson*[T](input: RawJson, t: typedesc[T]): T {.inline.} =
-  fromJson(string(input), t)
+proc fromJson*[T](input: RawJson, t: typedesc[T];
+                  unknownFields = ufSkip): T {.inline.} =
+  fromJson(string(input), t, unknownFields)
 
-proc fromJson*[T](input: string, dst: var T) =
+proc fromJson*[T](input: string, dst: var T;
+                  unknownFields = ufSkip) =
   ## Unmarshals the specified string into the location specified.
   let s = streams.open(input)
-  fromJson(s, dst)
+  fromJson(s, dst, unknownFields)
 
-proc fromJson*[T](input: RawJson, dst: var T) {.inline.} =
-  fromJson(string(input), dst)
+proc fromJson*[T](input: RawJson, dst: var T;
+                  unknownFields = ufSkip) {.inline.} =
+  fromJson(string(input), dst, unknownFields)
 
-proc fromFile*[T](path: Path, dst: var T) =
+proc fromFile*[T](path: Path, dst: var T;
+                  unknownFields = ufSkip) =
   ## Unmarshals the specified JSON file into the location specified.
   let s = streams.open(path, fmRead)
   if s.isNil:
     raise newException(IOError, "cannot open file: " & path.string)
-  fromJson(s, dst)
+  fromJson(s, dst, unknownFields)
 
-proc fromFile*[T](path: Path, t: typedesc[T]): T =
+proc fromFile*[T](path: Path, t: typedesc[T];
+                  unknownFields = ufSkip): T =
   ## Unmarshals the specified JSON file into the type specified.
-  fromFile(path, result)
+  fromFile(path, result, unknownFields)
 
 proc toJson*[T](x: T): string =
   ## Serializes the specified value to a JSON string.
@@ -647,7 +673,7 @@ proc toJson*[T](x: T): string =
   s.writeJson(x)
   result = move(s.s)
 
-template whileJsonItems(s, x, xType, body: untyped) =
+template whileJsonItems(s, x, xType, unknownFields, body: untyped) =
   var p: JsonParser
   open(p, s, "unknown file")
   try:
@@ -655,7 +681,7 @@ template whileJsonItems(s, x, xType, body: untyped) =
     eat(p, tkBracketLe)
     while p.tok != tkBracketRi:
       var x: xType
-      readJson(x, p)
+      readJson(x, p, unknownFields)
       body
       expectArraySeparator(p)
     eat(p, tkBracketRi)
@@ -667,9 +693,13 @@ macro jsonItems*(x: ForLoopStmt): untyped =
   ## Unmarshals a JArray into the type specified, one items at a time.
   expectLen(x, 3)
   let iterVar = x[0]
-  expectLen(x[1], 3)
+  expectKind(x[1], nnkCall)
+  if x[1].len notin {3, 4}:
+    error("jsonItems expects a stream, item type, and optional UnknownFieldPolicy", x[1])
   let
     iterType = x[1][2]
     strmVar = x[1][1]
+    unknownFields = if x[1].len == 4: x[1][3] else: bindSym"ufSkip"
     body = x[^1]
-  result = newBlockStmt(getAst(whileJsonItems(strmVar, iterVar, iterType, body)))
+  result = newBlockStmt(getAst(
+    whileJsonItems(strmVar, iterVar, iterType, unknownFields, body)))

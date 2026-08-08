@@ -1,7 +1,5 @@
 ## Benchmark jsonx (int-heavy):
 
-{.define: jsonxLenient.}
-
 import std/[strutils, times]
 import jsonx
 

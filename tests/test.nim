@@ -84,6 +84,8 @@ type
     choices: seq[ChatChoice]
   LenientKnown = object
     known: int
+  NestedKnown = object
+    child: LenientKnown
   RawJsonHolder = object
     payload: RawJson
   CanonRawJsonHolder = object
@@ -95,9 +97,10 @@ proc rawText(x: RawJson): string =
 proc canonicalText(x: CanonRawJson): string =
   result = string(x)
 
-proc readJson(dst: var Baz; p: var JsonParser) =
+proc readJson(dst: var Baz; p: var JsonParser;
+              unknownFields: UnknownFieldPolicy) =
   var tmp: string
-  readJson(tmp, p)
+  readJson(tmp, p, unknownFields)
   dst = Baz(tmp)
 proc `==`(a, b: Baz): bool {.borrow.}
 
@@ -308,7 +311,7 @@ block:
     close(p)
   discard getTok(p)
   var raw: RawJson
-  readJson(raw, p)
+  readJson(raw, p, ufSkip)
   doAssert rawText(raw) == """{"k":[1,2,true]}"""
 block:
   doAssertRaises(JsonParsingError):
@@ -460,15 +463,27 @@ block:
     assert a[1].siblings.len == 2
     assert a[1].siblings[0].birthYear == 1991
 
-when defined(jsonxLenient):
-  block:
-    let s = """{"known":1,"skip":9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"""
-    let a = fromJson(s, LenientKnown)
-    assert a.known == 1
-  block:
-    let s = """{"known":1,"skip":[9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999],"known":2}"""
-    let a = fromJson(s, LenientKnown)
-    assert a.known == 2
-  block:
-    doAssertRaises(JsonParsingError):
-      discard fromJson("""{"known":1,"skip":truX}""", LenientKnown)
+block:
+  let s = """{"known":1,"skip":9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"""
+  let a = fromJson(s, LenientKnown)
+  assert a.known == 1
+block:
+  let s = """{"known":1,"skip":[9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999],"known":2}"""
+  let a = fromJson(s, LenientKnown)
+  assert a.known == 2
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("""{"known":1,"skip":2}""", LenientKnown,
+      ufReject)
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("""{"child":{"known":1,"skip":2}}""", NestedKnown,
+      ufReject)
+block:
+  let s = streams.open("""[{"known":1,"skip":2}]""")
+  doAssertRaises(JsonParsingError):
+    for value in jsonItems(s, LenientKnown, ufReject):
+      discard value
+block:
+  doAssertRaises(JsonParsingError):
+    discard fromJson("""{"known":1,"skip":truX}""", LenientKnown)
