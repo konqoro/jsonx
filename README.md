@@ -243,19 +243,29 @@ import jsonx/streams
 let s = streams.open("[{\"name\":\"A\"},{\"name\":\"B\"}]")
 for item in jsonItems(s, Person):
   discard
+
+let strictStream = streams.open("[{\"name\":\"A\"}]")
+for item in jsonItems(strictStream, Person, ufReject):
+  discard
 ```
 
 ## Unknown object fields
 
-Unknown object fields are skipped by default. Pass `ufReject` to reject them for one
-decoding operation:
+`UnknownFieldPolicy` has two values:
+
+- `ufSkip` skips unknown object fields and is the default.
+- `ufReject` raises `JsonParsingError` when an object contains an unknown field.
+
+Known fields remain type-checked in both modes, and malformed JSON always fails. Select the policy
+per decoding operation:
 
 ```nim
-let strict = fromJson(payload, Person, ufReject)
+let compatible = fromJson(payload, Person)
+let strict = fromJson(payload, Person, unknownFields = ufReject)
 ```
 
-The policy propagates through nested objects and custom readers. Recursive `readJson`
-implementations must forward it:
+The selected policy propagates through nested objects, sequences, tables, references, options,
+tuples, `fromFile`, and `jsonItems`. Custom `readJson` implementations must accept and forward it:
 
 ```nim
 proc readJson*(dst: var Wrapper; p: var JsonParser;
@@ -263,13 +273,16 @@ proc readJson*(dst: var Wrapper; p: var JsonParser;
   readJson(dst.value, p, unknownFields)
 ```
 
+The former `jsonxLenient` compile-time define is no longer needed: lenient decoding is now the
+default, while strict decoding is selected at runtime with `ufReject`.
+
 ## Compile-Time Defines
 
 Enable with `-d:<define>` or a module pragma like `{.define: <define>.}`.
 
 | Define | Default | Effect |
 | --- | --- | --- |
-| `jsonxNormalized` | off | Object field matching uses `nimIdentNormalize` (case/underscore-insensitive Nim-style matching) instead of exact JSON key matching. |
+| `jsonxNormalized` | off | Object field matching uses `nimIdentNormalize` (case/underscore-insensitive Nim-style matching) instead of exact JSON key matching. This remains compile-time so object readers generate only one matching branch. |
 
 ## Tests
 
